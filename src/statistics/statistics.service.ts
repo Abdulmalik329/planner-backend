@@ -31,20 +31,22 @@ export class StatisticsService {
     const completionRate =
       totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // Bugungi vazifalar uchun vaqtni hisoblash
+    // Bugungi vazifalar uchun vaqtni hisoblash (dueDate asosida)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
-    // .date o'rniga .createdAt (yoki .dueDate) ishlatildi
+    // .dueDate ishlatildi (dueDate null bo'lsa, hisobga olinmaydi)
     const todayTasks = tasks.filter((t) => {
-      const taskDate = new Date(t.createdAt);
+      if (!t.dueDate) return false;
+      const taskDate = new Date(t.dueDate);
       return taskDate >= todayStart && taskDate < todayEnd;
     }).length;
 
     const todayCompleted = tasks.filter((t) => {
-      const taskDate = new Date(t.createdAt);
+      if (!t.dueDate) return false;
+      const taskDate = new Date(t.dueDate);
       return taskDate >= todayStart && taskDate < todayEnd && t.completed;
     }).length;
 
