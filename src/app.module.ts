@@ -5,6 +5,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './common/health.controller';
+import { ManagerModule } from './manager/manager.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { HealthController } from './common/health.controller';
     TasksModule,
     CategoriesModule,
     StatisticsModule,
+    ManagerModule,
   ],
   controllers: [HealthController],
 })

@@ -1,9 +1,10 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+// src/auth/auth.service.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// The login response now includes user.role so the frontend can route
+// MANAGER users to /manager/dashboard and regular users to /dashboard.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -11,53 +12,63 @@ import * as bcrypt from 'bcrypt';
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async signup(email: string, password: string, name?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new ConflictException('Bu email allaqachon ro\'yxatdan o\'tgan');
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (existing) throw new UnauthorizedException('Email already registered');
+
+    const hashed = await bcrypt.hash(password, 10);
+
     const user = await this.prisma.user.create({
-      data: { email, password: hashedPassword, name },
+      data: { email, password: hashed, name },
+      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
     });
-    const token = this.jwtService.sign({ userId: user.id, email: user.email });
-    return { user: { id: user.id, email: user.email, name: user.name }, token };
+
+    const token = this.jwtService.sign({ sub: user.id, email: user.email });
+    return { user, token };
   }
 
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new UnauthorizedException('Email yoki parol noto\'g\'ri');
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) throw new UnauthorizedException('Email yoki parol noto\'g\'ri');
-    const token = this.jwtService.sign({ userId: user.id, email: user.email });
-    return { user: { id: user.id, email: user.email, name: user.name }, token };
+
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user.isActive) throw new UnauthorizedException('Account is deactivated');
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) throw new UnauthorizedException('Invalid credentials');
+
+    const token = this.jwtService.sign({ sub: user.id, email: user.email });
+
+    // Return user without password, but WITH role — frontend uses this to route
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,       // <-- IMPORTANT: include role
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+      },
+      token,
+    };
   }
 
   async getMe(userId: string) {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
     });
-  }
-
-  async updateProfile(userId: string, name: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { name },
-      select: { id: true, email: true, name: true },
-    });
-  }
-
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
-    const isValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isValid) throw new BadRequestException('Joriy parol noto\'g\'ri');
-    if (newPassword.length < 6) throw new BadRequestException('Yangi parol kamida 6 ta belgi');
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await this.prisma.user.update({ where: { id: userId }, data: { password: hashed } });
-    return { message: 'Parol muvaffaqiyatli o\'zgartirildi' };
+    if (!user) throw new UnauthorizedException('User not found');
+    return user;
   }
 }
