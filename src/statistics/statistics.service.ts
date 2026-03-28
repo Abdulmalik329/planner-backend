@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { Priority } from "@prisma/client"; // Enumni import qilamiz
 
 @Injectable()
 export class StatisticsService {
@@ -16,33 +17,35 @@ export class StatisticsService {
     const activeTasks = tasks.filter((t) => !t.completed && !t.archived).length;
     const archivedTasks = tasks.filter((t) => t.archived).length;
 
+    // Prisma enumlariga (Priority.HIGH va hokazo) moslandi
     const highPriority = tasks.filter(
-      (t) => t.priority === 'high' && !t.completed,
+      (t) => t.priority === Priority.HIGH && !t.completed,
     ).length;
     const mediumPriority = tasks.filter(
-      (t) => t.priority === 'medium' && !t.completed,
+      (t) => t.priority === Priority.MEDIUM && !t.completed,
     ).length;
     const lowPriority = tasks.filter(
-      (t) => t.priority === 'low' && !t.completed,
+      (t) => t.priority === Priority.LOW && !t.completed,
     ).length;
 
     const completionRate =
       totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // Bugungi vazifalar
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Bugungi vazifalar uchun vaqtni hisoblash
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
 
+    // .date o'rniga .createdAt (yoki .dueDate) ishlatildi
     const todayTasks = tasks.filter((t) => {
-      const taskDate = new Date(t.date);
-      return taskDate >= today && taskDate < tomorrow;
+      const taskDate = new Date(t.createdAt);
+      return taskDate >= todayStart && taskDate < todayEnd;
     }).length;
 
     const todayCompleted = tasks.filter((t) => {
-      const taskDate = new Date(t.date);
-      return taskDate >= today && taskDate < tomorrow && t.completed;
+      const taskDate = new Date(t.createdAt);
+      return taskDate >= todayStart && taskDate < todayEnd && t.completed;
     }).length;
 
     return {
